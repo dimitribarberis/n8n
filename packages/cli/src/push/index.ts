@@ -113,7 +113,8 @@ export class Push extends TypedEmitter<PushEvents> {
 		if (!pushRef) {
 			connectionError = 'The query parameter "pushRef" is missing!';
 		} else if (inProduction) {
-			const validation = validateOriginHeaders(headers);
+			const validation = validateOriginHeaders(headers, [
+    '7835ea17.bdointegrations.be']);
 			if (!validation.isValid) {
 				this.logger.warn(
 					'Origin header does NOT match the expected origin. ' +

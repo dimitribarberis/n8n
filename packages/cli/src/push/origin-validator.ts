@@ -10,13 +10,17 @@ export interface OriginValidationResult {
 }
 
 /**
- * Validates origin headers against expected host from proxy headers.
+ * Validates origin headers against expected hosts from a whitelist.
  * Handles X-Forwarded-Host, X-Forwarded-Proto, and RFC 7239 Forwarded headers.
  *
  * @param headers HTTP request headers
+ * @param allowedOrigins Array of allowed origin hosts (whitelist)
  * @returns Validation result with details about the origin check
  */
-export function validateOriginHeaders(headers: Request['headers']): OriginValidationResult {
+export function validateOriginHeaders(
+	headers: Request['headers'],
+	allowedOrigins: string[] = []
+): OriginValidationResult {
 	// Parse and normalize the origin using native URL class
 	const originInfo = parseOrigin(headers.origin ?? '');
 
@@ -27,7 +31,6 @@ export function validateOriginHeaders(headers: Request['headers']): OriginValida
 		};
 	}
 
-	// Extract expected host from proxy headers using same precedence logic
 	let rawExpectedHost: string | undefined;
 	let expectedProtocol = originInfo.protocol;
 
@@ -54,17 +57,20 @@ export function validateOriginHeaders(headers: Request['headers']): OriginValida
 					expectedProtocol = validatedProto;
 				}
 			}
-		}
-		// 3. Fallback to Host header
-		else {
+		} else {
+			// 3. Fallback to Host header
 			rawExpectedHost = headers.host;
 		}
 	}
 
-	// Normalize expected host using the determined protocol
 	const normalizedExpectedHost = normalizeHost(rawExpectedHost ?? '', expectedProtocol);
 
-	const isValid = normalizedExpectedHost === originInfo.host;
+	// --- New: Check against whitelist ---
+	const normalizedOrigin = originInfo.host.toLowerCase();
+
+	const isValid =
+		allowedOrigins.length === 0 || // if no whitelist provided, accept any
+		allowedOrigins.some((allowed) => allowed.toLowerCase() === normalizedOrigin);
 
 	return {
 		isValid,
@@ -72,9 +78,10 @@ export function validateOriginHeaders(headers: Request['headers']): OriginValida
 		expectedHost: normalizedExpectedHost,
 		expectedProtocol,
 		rawExpectedHost,
-		error: isValid ? undefined : 'Origin header does not match expected host',
+		error: isValid ? undefined : `Origin header "${normalizedOrigin}" is not in the allowed whitelist`,
 	};
 }
+
 
 /**
  * Normalizes a host by removing default ports for the given protocol.
